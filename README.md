@@ -7,6 +7,7 @@ This directory contains a simple joystick teleoperation script for the UGV chass
 ## Files
 
 - `manual_drive.py` — reads `/dev/input/js0` and maps joystick axes to differential drive commands sent over serial to the base controller.
+ - `main.py` — reads `/dev/input/js0` and maps joystick axes to differential drive commands sent over serial to the base controller.
 
 ## Quick start
 
@@ -19,7 +20,7 @@ sudo jstest /dev/input/js0
 2. Run the teleop script (may require `sudo` to access the joystick device):
 
 ```bash
-sudo python3 tutorial_en/manual_drive.py
+sudo python3 main.py
 ```
 
 3. Move the left analog stick to drive the robot. Release the stick to stop — the script sends zero speed when the axis returns to center.
@@ -33,6 +34,11 @@ Edit the top of `manual_drive.py` to change behavior:
 - `AXIS_TURN` — axis number used for turning (default `0`, typically left stick horizontal).
 - `DEADZONE` — small threshold to ignore stick jitter (default `0.15`).
 - `MAX_SPEED` / `MAX_TURN` — scale linear and turning speeds.
+
+Fixes in this version:
+
+- Left/right turning inversion corrected: pushing the stick left now turns the robot left.
+- Diagonal (combined forward+turn) control improved: joystick uses a radial deadzone and rescales diagonal inputs so you can smoothly move and turn when pushing the stick at an angle.
 
 If controls feel inverted, swap sign or swap axis indices as needed.
 

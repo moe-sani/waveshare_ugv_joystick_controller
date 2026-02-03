@@ -4,6 +4,7 @@ import fcntl
 import struct
 import select
 import time
+import math
 import signal
 import sys
 
@@ -15,8 +16,8 @@ import sys
 SERIAL = '/dev/ttyTHS1'
 BAUD = 115200
 
-MAX_SPEED = 0.4     # m/s
-MAX_TURN = 0.3      # differential term (m/s)
+MAX_SPEED = 0.2     # m/s
+MAX_TURN = 0.2      # differential term (m/s)
 SEND_INTERVAL = 0.5 # seconds (keepalive)
 
 # Joystick device and axis mapping (adjust if your gamepad differs)
@@ -110,11 +111,21 @@ def main():
 
             # map axes to forward/turn
             raw_forward = -axis.get(AXIS_FORWARD, 0.0)  # invert so up is positive
-            raw_turn = axis.get(AXIS_TURN, 0.0)
+            # invert horizontal axis so pushing left produces a left turn
+            raw_turn = -axis.get(AXIS_TURN, 0.0)
 
-            # apply deadzone
-            forward = raw_forward if abs(raw_forward) >= DEADZONE else 0.0
-            turn = raw_turn if abs(raw_turn) >= DEADZONE else 0.0
+            # apply radial deadzone and rescale so diagonal inputs produce smooth combined motion
+            m = math.hypot(raw_forward, raw_turn)
+            if m < DEADZONE or m == 0.0:
+                forward = 0.0
+                turn = 0.0
+            else:
+                # rescale magnitude to account for deadzone and preserve direction
+                scale = (m - DEADZONE) / (1.0 - DEADZONE)
+                nx = raw_forward / m
+                ny = raw_turn / m
+                forward = nx * scale
+                turn = ny * scale
 
             # scale
             forward_m = forward * MAX_SPEED
