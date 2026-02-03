@@ -20,6 +20,25 @@ MAX_SPEED = 0.2     # m/s
 MAX_TURN = 0.2      # differential term (m/s)
 SEND_INTERVAL = 0.5 # seconds (keepalive)
 
+# Right-stick / gimbal configuration
+# Many controllers map: 2=right_x, 3=right_y but some report swapped axes.
+# Swap defaults to the more common mapping for right stick: pan=3 (horizontal), tilt=2 (vertical).
+RIGHT_AXIS_PAN = 3    # horizontal on right stick (pan)
+RIGHT_AXIS_TILT = 4   # vertical on right stick (tilt)
+GIMBAL_SEND_INTERVAL = 0.1  # seconds
+# Pan/Tilt angle limits (degrees)
+PAN_MIN = -180.0
+PAN_MAX = 180.0
+TILT_MIN = -45.0
+TILT_MAX = 90.0
+# Maximum speed (degrees/sec) at full stick deflection
+PAN_SPEED_DEG = 90.0
+TILT_SPEED_DEG = 90.0
+
+# Button mapping for lights (common: LB=4, RB=5). Adjust to your device if needed.
+BUTTON_LIGHT_LEFT = 4
+BUTTON_LIGHT_RIGHT = 5
+
 # Joystick device and axis mapping (adjust if your gamepad differs)
 JS_DEV = '/dev/input/js0'
 AXIS_FORWARD = 1  # typically left stick vertical
@@ -88,6 +107,16 @@ def main():
     print(f"Using joystick {JS_DEV}. AXIS_FORWARD={AXIS_FORWARD}, AXIS_TURN={AXIS_TURN}, DEADZONE={DEADZONE}")
 
     axis = {}
+    buttons = {}
+    last_buttons = {}
+    io4_pwm = 0
+    io5_pwm = 0
+    last_gimbal_send = 0.0
+    # persistent pan/tilt angles (degrees). Start at 0 (do not auto-return).
+    pan_angle = 0.0
+    tilt_angle = 0.0
+    last_pan, last_tilt = None, None
+    last_loop_time = time.time()
     last_send = 0.0
     last_l, last_r = 0.0, 0.0
 
@@ -105,7 +134,9 @@ def main():
                         continue
                     if etype & JS_EVENT_AXIS:
                         axis[number] = normalize_axis(value)
-                    # buttons ignored for now
+                    if etype & JS_EVENT_BUTTON:
+                        # value is 1 when pressed, 0 when released
+                        buttons[number] = value
             except BlockingIOError:
                 pass
 
@@ -144,6 +175,63 @@ def main():
                 # keepalive with current values
                 base.send_command({"T":1, "L":round(l,3), "R":round(r,3)})
                 last_send = time.time()
+
+            # Right stick -> pan/tilt (integrated velocity control)
+            # read raw axes: pan should be horizontal, tilt vertical (invert vertical so up is positive)
+            raw_pan = axis.get(RIGHT_AXIS_PAN, 0.0)
+            raw_tilt = -axis.get(RIGHT_AXIS_TILT, 0.0)  # invert so up is positive
+            # radial deadzone/rescale for velocity magnitude
+            m2 = math.hypot(raw_pan, raw_tilt)
+            if m2 < DEADZONE or m2 == 0.0:
+                pan_norm = 0.0
+                tilt_norm = 0.0
+            else:
+                scale2 = (m2 - DEADZONE) / (1.0 - DEADZONE)
+                nx2 = raw_pan / m2
+                ny2 = raw_tilt / m2
+                pan_norm = nx2 * scale2
+                tilt_norm = ny2 * scale2
+
+            # integrate velocity to degrees using loop dt
+            now = time.time()
+            dt = max(0.0, now - last_loop_time)
+            last_loop_time = now
+
+            pan_angle += pan_norm * PAN_SPEED_DEG * dt
+            tilt_angle += tilt_norm * TILT_SPEED_DEG * dt
+            # clamp
+            pan_angle = clamp(pan_angle, PAN_MIN, PAN_MAX)
+            tilt_angle = clamp(tilt_angle, TILT_MIN, TILT_MAX)
+
+            # send gimbal commands when changed or periodically
+            now = time.time()
+            if last_pan is None:
+                last_pan = pan_angle
+            if last_tilt is None:
+                last_tilt = tilt_angle
+            if (abs(pan_angle - last_pan) > 0) or (abs(tilt_angle - last_tilt) > 0) or (now - last_gimbal_send > GIMBAL_SEND_INTERVAL):
+                try:
+                    base.gimbal_ctrl(int(pan_angle), int(tilt_angle), 0, 0)
+                    last_gimbal_send = now
+                    last_pan, last_tilt = pan_angle, tilt_angle
+                except Exception:
+                    pass
+
+            # handle button presses for lights (toggle on rising edge)
+            try:
+                lb = buttons.get(BUTTON_LIGHT_LEFT, 0)
+                rb = buttons.get(BUTTON_LIGHT_RIGHT, 0)
+                if lb == 1 and last_buttons.get(BUTTON_LIGHT_LEFT, 0) == 0:
+                    io4_pwm = 0 if io4_pwm else 255
+                    base.lights_ctrl(io4_pwm, io5_pwm)
+                    print(f"Toggled IO4 (chassis LED) -> {io4_pwm}")
+                if rb == 1 and last_buttons.get(BUTTON_LIGHT_RIGHT, 0) == 0:
+                    io5_pwm = 0 if io5_pwm else 255
+                    base.lights_ctrl(io4_pwm, io5_pwm)
+                    print(f"Toggled IO5 (pan-tilt LED) -> {io5_pwm}")
+            except Exception:
+                pass
+            last_buttons.update(buttons)
 
             time.sleep(0.01)
 

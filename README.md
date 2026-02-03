@@ -27,13 +27,23 @@ sudo python3 main.py
 
 ## Configuration
 
-Edit the top of `manual_drive.py` to change behavior:
+Edit the top of `main.py` to change behavior:
 
 - `JS_DEV` — joystick device path (default `/dev/input/js0`).
 - `AXIS_FORWARD` — axis number used for forward/back (default `1`, typically left stick vertical).
 - `AXIS_TURN` — axis number used for turning (default `0`, typically left stick horizontal).
 - `DEADZONE` — small threshold to ignore stick jitter (default `0.15`).
 - `MAX_SPEED` / `MAX_TURN` — scale linear and turning speeds.
+
+Additional controls in this version:
+
+- Right stick (`RIGHT_AXIS_PAN`, `RIGHT_AXIS_TILT`): controls the pan/tilt gimbal. Pan maps roughly to ±180°; tilt maps approximately from -45° (down) to +90° (up). Adjust `RIGHT_AXIS_PAN` / `RIGHT_AXIS_TILT` at the top of `main.py` if your gamepad uses different axis indices.
+- Shoulder buttons (`BUTTON_LIGHT_LEFT`, `BUTTON_LIGHT_RIGHT`): toggle IO4 (chassis LED) and IO5 (pan-tilt LED) respectively. Defaults are LB=4 and RB=5; change these constants if your device reports different button numbers.
+
+Behavior notes:
+
+- Pan/Tilt now use hold-to-move velocity control: pushing the right stick in a direction will move the gimbal continuously while held. The deflection magnitude controls speed (more deflection → faster). Releasing the stick stops movement — the camera does not auto-return to center.
+- Default axis mapping is `RIGHT_AXIS_PAN=3` (horizontal) and `RIGHT_AXIS_TILT=2` (vertical). If your controller reports different indices, run `jstest /dev/input/js0` and update those constants at the top of `main.py`.
 
 Fixes in this version:
 
