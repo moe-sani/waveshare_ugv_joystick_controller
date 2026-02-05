@@ -39,6 +39,12 @@ TILT_SPEED_DEG = 90.0
 BUTTON_LIGHT_LEFT = 4
 BUTTON_LIGHT_RIGHT = 5
 
+# Hat / D-pad axes (user-provided): left/right = axis 6, back/forward = axis 7
+HAT_AXIS_X = 6
+HAT_AXIS_Y = 7
+HAT_FORWARD_SPEED = 0.05  # m/s when fully pressed on hat Y
+HAT_TURN_SPEED = 0.05     # m/s when fully pressed on hat X
+
 # Joystick device and axis mapping (adjust if your gamepad differs)
 JS_DEV = '/dev/input/js0'
 AXIS_FORWARD = 1  # typically left stick vertical
@@ -161,6 +167,14 @@ def main():
             # scale
             forward_m = forward * MAX_SPEED
             turn_m = turn * MAX_TURN
+
+            # Hat (axes 6/7) fixed slow speeds: integrate as additive contribution
+            raw_hat_x = -axis.get(HAT_AXIS_X, 0.0)
+            raw_hat_y = -axis.get(HAT_AXIS_Y, 0.0)  # user said negative = forward
+            if abs(raw_hat_x) >= DEADZONE:
+                turn_m += raw_hat_x * HAT_TURN_SPEED
+            if abs(raw_hat_y) >= DEADZONE:
+                forward_m += raw_hat_y * HAT_FORWARD_SPEED
 
             l, r = compute_lr(forward_m, turn_m)
 

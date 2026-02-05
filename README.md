@@ -45,6 +45,8 @@ Behavior notes:
 - Pan/Tilt now use hold-to-move velocity control: pushing the right stick in a direction will move the gimbal continuously while held. The deflection magnitude controls speed (more deflection → faster). Releasing the stick stops movement — the camera does not auto-return to center.
 - Default axis mapping is `RIGHT_AXIS_PAN=3` (horizontal) and `RIGHT_AXIS_TILT=2` (vertical). If your controller reports different indices, run `jstest /dev/input/js0` and update those constants at the top of `main.py`.
 
+- Hat / D-pad control: axis `6` (left/right) and `7` (back/forward) are supported as slow fixed-speed controls. By default `HAT_AXIS_X=6`, `HAT_AXIS_Y=7` and full deflection gives small movement: `HAT_TURN_SPEED=0.05` m/s for turning and `HAT_FORWARD_SPEED=0.05` m/s for forward/back. Negative on axis 7 is treated as forward (as reported by some controllers).
+
 Fixes in this version:
 
 - Left/right turning inversion corrected: pushing the stick left now turns the robot left.
